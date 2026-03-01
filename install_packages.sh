@@ -31,6 +31,7 @@ apt-get install -y \
     net-tools \
     acl \
     attr \
+    ldb-tools \
     >> "$LOG_FILE" 2>&1 || error_exit "Falha na instalação dos pacotes."
 
 # Verifica se chrony foi instalado e inicia o serviço
