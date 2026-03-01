@@ -3,7 +3,7 @@
 #  Samba AD DC Automation Framework
 #  Console Interativo de Implantação
 #  @pedronels0n development
-#  Versão: 2.2.0 (com suporte a CA, wildcard, info e GPOs)
+#  Versão: 2.3.0 (com suporte a backup/restore)
 # ==========================================================
 
 SCRIPT_DIR="$(dirname "$0")"
@@ -28,9 +28,9 @@ while true; do
     show_banner
 
     CHOICE=$(dialog --clear --stdout \
-        --backtitle "Samba AD DC Automation Framework v2.2.0 | @pedronels0n development" \
+        --backtitle "Samba AD DC Automation Framework v2.3.0 | @pedronels0n development" \
         --title "Menu Principal" \
-        --menu "Selecione uma opção:" 34 100 25 \
+        --menu "Selecione uma opção:" 38 100 30 \
         1  "Configurar Hostname (FQDN)" \
         2  "Configurar IP Fixo (Rede)" \
         3  "Configurar /etc/resolv.conf (DNS)" \
@@ -55,11 +55,14 @@ while true; do
         19 "Remover GPOs Padrão do Samba (Default Domain Policy)" \
         20 "Criar GPOs de Hardening (lista predefinida)" \
         21 "Finalizar Segurança (restaurar full_audit + smb encrypt)" \
+        "-" "------------------------ BACKUP E RESTORE -------------------------" \
+        22 "Realizar Backup Manual do Samba AD DC" \
+        23 "Restaurar de Backup (Desastre)" \
         "-" "-------------------------- UTILITÁRIOS ---------------------------" \
-        22 "Verificar Instalação" \
-        23 "Executar Implantação BÁSICA (1-8)" \
-        24 "Executar Implantação AVANÇADA (9-13)" \
-        25 "Sair")
+        24 "Verificar Instalação" \
+        25 "Executar Implantação BÁSICA (1-8)" \
+        26 "Executar Implantação AVANÇADA (9-13)" \
+        27 "Sair")
 
     case $CHOICE in
         1)  bash "$SCRIPT_DIR/set_hostname.sh" ;;
@@ -83,8 +86,10 @@ while true; do
         19) bash "$SCRIPT_DIR/remove_default_gpos.sh" ;;
         20) bash "$SCRIPT_DIR/create_hardening_gpos.sh" ;;
         21) bash "$SCRIPT_DIR/finalize_samba_security.sh" ;;
-        22) bash "$SCRIPT_DIR/verify_installation.sh" ;;
-        23)
+        22) bash "$SCRIPT_DIR/samba_backup.sh" ;;
+        23) bash "$SCRIPT_DIR/samba_restore.sh" ;;
+        24) bash "$SCRIPT_DIR/verify_installation.sh" ;;
+        25)
             dialog --infobox "Executando etapas BÁSICAS..." 5 60
             sleep 1
             bash "$SCRIPT_DIR/set_hostname.sh" &&
@@ -97,7 +102,7 @@ while true; do
             bash "$SCRIPT_DIR/configure_services.sh" &&
             info_box "✔ Implantação básica concluída com sucesso!"
             ;;
-        24)
+        26)
             dialog --infobox "Executando etapas AVANÇADAS..." 5 60
             sleep 1
             bash "$SCRIPT_DIR/raise_functional_level.sh" &&
@@ -107,7 +112,7 @@ while true; do
             bash "$SCRIPT_DIR/enable_ldaps.sh" &&
             info_box "✔ Implantação avançada concluída com sucesso!"
             ;;
-        25|"")
+        27|"")
             clear
             echo
             echo "=============================================================="
