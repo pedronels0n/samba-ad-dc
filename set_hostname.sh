@@ -6,10 +6,10 @@ source "$(dirname "$0")/common.sh"
 # Verifica root
 check_root
 
-# Obtém o FQDN desejado (ex: dc1.exemplo.local)
+# Obtém o FQDN desejado (ex: dc1.pmlf.corp)
 exec 3>&1
 FQDN=$(dialog --stdout --title "Configuração do Hostname" \
-    --inputbox "Digite o nome totalmente qualificado (FQDN) do servidor,\nexemplo: dc1.exemplo.local" 10 50)
+    --inputbox "Digite o nome totalmente qualificado (FQDN) do servidor,\nexemplo: dc1.pmlf.corp" 10 50)
 if [ -z "$FQDN" ]; then
     error_exit "Hostname não informado."
 fi
@@ -19,7 +19,7 @@ HOSTNAME_SHORT=$(echo "$FQDN" | cut -d. -f1)
 DOMAIN=$(echo "$FQDN" | cut -d. -f2-)
 
 if [ -z "$DOMAIN" ]; then
-    error_exit "O FQDN deve incluir o domínio (ex: dc1.exemplo.local)."
+    error_exit "O FQDN deve incluir o domínio (ex: dc1.pmlf.corp)."
 fi
 
 # Define o hostname

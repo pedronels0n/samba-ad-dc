@@ -1,22 +1,17 @@
 #!/bin/bash
-# install_packages.sh - Instala os pacotes para o Samba DC
+# install_packages.sh - Instala os pacotes para o Samba DC (modo interativo para krb5-config)
 
-# Carrega funções comuns
 source "$(dirname "$0")/common.sh"
 
-# Verifica root
 check_root
 
-# Atualiza lista de pacotes e instala
 log "Atualizando lista de pacotes..."
 apt-get update >> "$LOG_FILE" 2>&1 || error_exit "Falha ao atualizar pacotes."
 
 log "Instalando pacotes: samba, krb5-config, winbind, chrony, rsyslog, smbclient e utilitários..."
 
-# Define opções para evitar prompts interativos do Kerberos e outros
-export DEBIAN_FRONTEND=noninteractive
-
-# Instala os pacotes essenciais para o Samba DC
+# NÃO definir DEBIAN_FRONTEND=noninteractive para permitir que o krb5-config faça perguntas
+# O -y apenas confirma a instalação, mas as configurações dos pacotes (debconf) serão interativas.
 apt-get install -y \
     samba \
     krb5-config \
@@ -49,7 +44,7 @@ log "Pacotes instalados com sucesso."
 
 info_box "Pacotes instalados com sucesso:\n\
 - samba (servidor AD DC)\n\
-- krb5-* (Kerberos)\n\
+- krb5-* (Kerberos - configure o realm quando solicitado)\n\
 - winbind (integração)\n\
 - chrony (sincronização de tempo)\n\
 - rsyslog (logging)\n\

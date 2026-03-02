@@ -9,10 +9,10 @@ check_root
 # Detecta se o sistema usa systemd-resolved ou resolvconf, mas vamos editar diretamente com aviso.
 # Muitos sistemas têm o resolv.conf gerenciado, então faremos backup e substituiremos, mas avisaremos.
 
-# Solicita domínio de pesquisa
+# Solicita domínio de pesquisa (exemplo adaptado para pmlf.corp)
 exec 3>&1
 DOMAIN=$(dialog --stdout --title "Domínio de Pesquisa" \
-    --inputbox "Digite o domínio de pesquisa (ex: exemplo.local):" 8 50)
+    --inputbox "Digite o domínio de pesquisa (ex: pmlf.corp):" 8 50)
 [ -z "$DOMAIN" ] && error_exit "Domínio não informado."
 
 # Solicita nameservers
