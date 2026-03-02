@@ -4,6 +4,7 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
+check_prereqs samba-tool dialog
 
 # Verifica se o samba-tool está disponível
 command -v samba-tool >/dev/null || error_exit "samba-tool não encontrado."

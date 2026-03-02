@@ -7,11 +7,13 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
+# garante que ferramentas necessárias estão presentes
+check_prereqs openssl cp cat mkdir sed systemctl
 
-# Define diretórios
-CA_DIR="/root/ca"
-CERTS_DIR="/etc/ssl/certs"  # ou /var/lib/samba/private/tls, mas vamos manter separado
-PRIVATE_DIR="/etc/ssl/private"
+# Define diretórios (CA_DIR padrão vem de common.sh, mas permitimos sobrescrever)
+CA_DIR="${CA_DIR:-/root/samba-ca}"
+CERTS_DIR="${CERTS_DIR:-/etc/ssl/certs}"  # ou /var/lib/samba/private/tls, mas vamos manter separado
+PRIVATE_DIR="${PRIVATE_DIR:-/etc/ssl/private}"
 
 mkdir -p "$CA_DIR" "$CERTS_DIR" "$PRIVATE_DIR"
 

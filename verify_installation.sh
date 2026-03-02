@@ -6,10 +6,21 @@ source "$(dirname "$0")/common.sh"
 # Verifica root (alguns comandos precisam)
 check_root
 
-# Coleta o domínio do smb.conf se possível
+# Coleta o domínio/realm do smb.conf se possível
 if [ -f /etc/samba/smb.conf ]; then
     REALM=$(grep "^[[:space:]]*realm" /etc/samba/smb.conf | awk '{print $2}')
     DOMAIN=$(grep "^[[:space:]]*workgroup" /etc/samba/smb.conf | awk '{print $2}')
+fi
+# Fallback para hostname se valores estiverem vazios
+if [ -z "$DOMAIN" ]; then
+    DOMAIN=$(hostname -d 2>/dev/null || true)
+fi
+if [ -z "$REALM" ]; then
+    if [ -n "$DOMAIN" ]; then
+        REALM=$(echo "$DOMAIN" | tr '[:lower:]' '[:upper:]')
+    else
+        REALM="$(hostname -d 2>/dev/null | tr '[:lower:]' '[:upper:]')"
+    fi
 fi
 
 {

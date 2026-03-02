@@ -7,6 +7,8 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+# verifica comandos necessários
+check_prereqs samba-tool tar find systemctl
 
 # --- Variáveis de Configuração ---
 BACKUP_DIR="/opt/samba_backups"

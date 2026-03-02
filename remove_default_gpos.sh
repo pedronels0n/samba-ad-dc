@@ -5,6 +5,7 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
+check_prereqs samba-tool ldbsearch ldbdel dialog sed systemctl
 
 # Verifica se o domínio foi provisionado
 if [ ! -f /var/lib/samba/private/sam.ldb ]; then

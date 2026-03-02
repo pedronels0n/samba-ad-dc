@@ -6,6 +6,7 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+check_prereqs chronyd dialog mkdir chown chmod systemctl
 
 # Verifica se o chrony está instalado
 if ! command -v chronyd &> /dev/null; then
@@ -81,9 +82,10 @@ chown root:_chrony "$NTP_SIGND_DIR"
 chmod 750 "$NTP_SIGND_DIR"
 log "Permissões do $NTP_SIGND_DIR ajustadas: owner root:_chrony, permissões 750."
 
-# (Opcional) Verifica se o grupo _chrony existe
+# (Opcional) Verifica se o grupo _chrony existe; cria se não existir
 if ! getent group _chrony > /dev/null; then
-    log "Grupo _chrony não encontrado. O pacote chrony deve criá-lo. Continuando..."
+    log "Grupo _chrony não encontrado. Criando grupo _chrony..."
+    groupadd -r _chrony || log "falha ao criar grupo _chrony, continue manualmente"
 fi
 
 # Habilita e reinicia o chrony

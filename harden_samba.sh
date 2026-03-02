@@ -69,8 +69,10 @@ samba-tool domain settings kerberos rc4 disable >> "$LOG_FILE" 2>&1
 
 log "Desabilitando WPAD e ISATAP via DNS (removendo registros)..."
 # Remove registros WPAD e ISATAP se existirem
-samba-tool dns delete $(hostname) $(hostname -d) WPAD A @ -U Administrator >> "$LOG_FILE" 2>&1 || true
-samba-tool dns delete $(hostname) $(hostname -d) ISATAP A @ -U Administrator >> "$LOG_FILE" 2>&1 || true
+HOST=$(hostname -f)
+DOMAIN=$(hostname -d)
+samba-tool dns delete "$HOST" "$DOMAIN" WPAD A @ -U Administrator >> "$LOG_FILE" 2>&1 || true
+samba-tool dns delete "$HOST" "$DOMAIN" ISATAP A @ -U Administrator >> "$LOG_FILE" 2>&1 || true
 
 # Auditoria de login e GPO (via samba-tool ou ajustes no smb.conf?)
 # Para auditoria de login, pode-se usar o parâmetro "log level = 3" e monitorar.

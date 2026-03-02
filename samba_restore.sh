@@ -7,6 +7,10 @@ source "$(dirname "$0")/common.sh"
 
 check_root
 check_dialog
+# ferramentas utilizadas durante a restauração
+check_prereqs tar find dialog systemctl samba
+# ferramentas utilizadas durante a restauração
+check_prereqs tar find dialog systemctl samba
 
 # Verifica se o backup existe
 BACKUP_FILE=""

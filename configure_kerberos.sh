@@ -5,6 +5,7 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+check_prereqs dialog
 
 # Pega o nome do domínio (ex: exemplo.local)
 DOMAIN=$(dialog --stdout --title "Configuração Kerberos" \
@@ -15,6 +16,11 @@ fi
 
 # Converte para maiúsculas (realm)
 REALM=$(echo "$DOMAIN" | tr '[:lower:]' '[:upper:]')
+
+# Faz backup do krb5.conf atual caso exista
+if [ -f /etc/krb5.conf ]; then
+    cp /etc/krb5.conf /etc/krb5.conf.bak.$(date +%Y%m%d%H%M%S)
+fi
 
 # Define o servidor DNS (padrão é o próprio host)
 cat > /etc/krb5.conf <<EOF

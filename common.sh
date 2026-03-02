@@ -1,5 +1,12 @@
 #!/bin/bash
 # common.sh - Funções compartilhadas entre os scripts de configuração do Samba DC
+# Esta biblioteca é "source" por todos os scripts; portanto, qualquer opção
+# de shell definida aqui é herdada pelos demais.
+
+# Strict mode para evitar erros silenciosos
+set -euo pipefail
+# reporta a linha em que ocorrer um erro e interrompe a execução
+trap 'error_exit "Erro inesperado no script ${BASH_SOURCE[1]:-$(basename "$0")} na linha $LINENO"' ERR
 
 # Cores para output (opcional, usado em mensagens)
 RED='\033[0;31m'
@@ -12,6 +19,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Arquivo de log
 LOG_FILE="${SCRIPT_DIR}/samba-setup.log"
+
+# Diretórios e configurações globais reutilizáveis
+CA_DIR="${CA_DIR:-/root/samba-ca}"       # local padrão para CA e certificados
+BACKUP_DIR="${BACKUP_DIR:-/opt/samba_backups}"  # diretório padrão de backups
+
+# Helper para verificar dependências
+require_command() {
+    if ! command -v "$1" &>/dev/null; then
+        error_exit "Comando '$1' não encontrado. Instale-o antes de continuar."
+    fi
+}
+
+# Verifica uma lista de comandos
+check_prereqs() {
+    for cmd in "$@"; do
+        require_command "$cmd"
+    done
+}
+
 
 # Função para log com timestamp
 log() {

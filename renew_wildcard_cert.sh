@@ -5,12 +5,14 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
+check_prereqs openssl date cp mv chmod systemctl
 
 DOMAIN=$(hostname -d)
 FQDN=$(hostname -f)
-CA_DIR="/root/ca"
-CERTS_DIR="/etc/ssl/certs"
-PRIVATE_DIR="/etc/ssl/private"
+# o common.sh já define CA_DIR padrão, mas garantimos a variável caso não tenha sido
+CA_DIR="${CA_DIR:-/root/samba-ca}"
+CERTS_DIR="${CERTS_DIR:-/etc/ssl/certs}"
+PRIVATE_DIR="${PRIVATE_DIR:-/etc/ssl/private}"
 CA_NAME="ca-${DOMAIN}"
 WILDCARD_NAME="wildcard.${DOMAIN}"
 CERT_FILE="$CERTS_DIR/${WILDCARD_NAME}.crt"

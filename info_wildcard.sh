@@ -3,7 +3,8 @@
 
 source "$(dirname "$0")/common.sh"
 
-CA_DIR="/root/samba-ca"
+# utiliza diretório padrão definido em common.sh
+CA_DIR="${CA_DIR:-/root/samba-ca}"
 WILDCARD_CERT="$CA_DIR/wildcard.crt"
 
 if [ ! -f "$WILDCARD_CERT" ]; then

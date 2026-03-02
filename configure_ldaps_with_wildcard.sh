@@ -4,8 +4,10 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
+check_prereqs openssl cp chmod cat systemctl grep sed
 
-CA_DIR="/root/samba-ca"
+# usa CA_DIR global ou valor padrão
+CA_DIR="${CA_DIR:-/root/samba-ca}"
 WILDCARD_KEY="$CA_DIR/wildcard.key"
 WILDCARD_CERT="$CA_DIR/wildcard.crt"
 CA_CERT="$CA_DIR/ca.crt"

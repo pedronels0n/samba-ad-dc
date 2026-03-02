@@ -27,7 +27,6 @@ apt-get install -y \
     acl \
     attr \
     ldb-tools \
-    >> "$LOG_FILE" 2>&1 || error_exit "Falha na instalação dos pacotes."
 
 # Verifica se chrony foi instalado e inicia o serviço
 if systemctl list-unit-files | grep -q chrony; then

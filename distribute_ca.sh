@@ -5,7 +5,8 @@ source "$(dirname "$0")/common.sh"
 
 check_root
 
-CA_DIR="/root/samba-ca"
+# utiliza CA_DIR definido em common.sh ou padrão
+CA_DIR="${CA_DIR:-/root/samba-ca}"
 CA_CERT="$CA_DIR/ca.crt"
 
 if [ ! -f "$CA_CERT" ]; then

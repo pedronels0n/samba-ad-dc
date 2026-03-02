@@ -5,6 +5,7 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+check_prereqs systemctl dialog
 
 log "Parando serviços não necessários (smbd, nmbd, winbind)..."
 systemctl stop smbd nmbd winbind 2>/dev/null

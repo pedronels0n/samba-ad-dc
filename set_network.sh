@@ -5,6 +5,8 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+# comandos usados no script
+check_prereqs ip awk grep dialog sed
 
 # Detecta qual sistema de rede está em uso
 if [ -d /etc/netplan ]; then
@@ -40,17 +42,30 @@ exec 3>&1
 IP_ADDR=$(dialog --stdout --title "Endereço IP" \
     --inputbox "Digite o endereço IP com máscara (ex: 192.168.1.10/24):" 8 50)
 [ -z "$IP_ADDR" ] && error_exit "IP não informado."
+# valida formato CIDR básico
+if ! [[ "$IP_ADDR" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/[0-9]+$ ]]; then
+    error_exit "Formato de IP inválido. Use algo como 192.168.1.10/24."
+fi
 
 GATEWAY=$(dialog --stdout --title "Gateway" \
     --inputbox "Digite o gateway padrão (ex: 192.168.1.1):" 8 50)
 [ -z "$GATEWAY" ] && error_exit "Gateway não informado."
+if ! [[ "$GATEWAY" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    error_exit "Gateway inválido. Use um endereço IPv4 válido."
+fi
 
 DNS1=$(dialog --stdout --title "Servidor DNS Primário" \
     --inputbox "Digite o servidor DNS primário (ex: 8.8.8.8):" 8 50)
 [ -z "$DNS1" ] && error_exit "DNS primário não informado."
+if ! [[ "$DNS1" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    error_exit "Endereço DNS primário inválido."
+fi
 
 DNS2=$(dialog --stdout --title "Servidor DNS Secundário (opcional)" \
     --inputbox "Digite o servidor DNS secundário (ou deixe em branco):" 8 50)
+if [ -n "$DNS2" ] && ! [[ "$DNS2" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    error_exit "Endereço DNS secundário inválido."
+fi
 
 # Converte máscara CIDR para netmask se necessário (vamos manter CIDR no netplan, mas no ifupdown precisamos da netmask)
 # Para ifupdown, precisamos converter. Vamos fazer uma função simples.

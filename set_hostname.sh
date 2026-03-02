@@ -5,6 +5,7 @@ source "$(dirname "$0")/common.sh"
 
 # Verifica root
 check_root
+check_prereqs hostnamectl dialog sed grep
 
 # Obtém o FQDN desejado (ex: dc1.pmlf.corp)
 exec 3>&1
@@ -12,6 +13,10 @@ FQDN=$(dialog --stdout --title "Configuração do Hostname" \
     --inputbox "Digite o nome totalmente qualificado (FQDN) do servidor,\nexemplo: dc1.pmlf.corp" 10 50)
 if [ -z "$FQDN" ]; then
     error_exit "Hostname não informado."
+fi
+# validação simples de FQDN
+if ! [[ "$FQDN" =~ ^[A-Za-z0-9][-A-Za-z0-9]*\.[A-Za-z0-9.-]+$ ]]; then
+    error_exit "FQDN inválido. Certifique-se de incluir um domínio, ex: dc1.pmlf.corp"
 fi
 
 # Extrai o hostname curto (primeiro componente)
