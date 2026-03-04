@@ -53,7 +53,7 @@ for GPO in "${GPOS[@]}"; do
     echo "$PERCENT" | dialog --gauge "Criando GPO: $GPO\n($CURRENT de $TOTAL concluídas)" 8 70 0
 
     log "Criando GPO: $GPO"
-    samba-tool gpo create "$GPO" -U Administrator --password="$ADMIN_PASS" >> "$LOG_FILE" 2>&1
+    samba-tool gpo create "$GPO" -U Administrator --password="$ADMIN_PASS"
     if [ $? -ne 0 ]; then
         log "ERRO: Falha ao criar GPO '$GPO'"
         FAILED+=("$GPO")

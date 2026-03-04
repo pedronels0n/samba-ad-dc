@@ -22,10 +22,10 @@ ZONE="${IP_PREFIX}.in-addr.arpa"
 
 # Verifica se a zona já existe
 HOST=$(hostname -f)
-if samba-tool dns zoneinfo "$HOST" "$ZONE" >/dev/null 2>&1; then
+if samba-tool -U Administrator dns zoneinfo "$HOST" "$ZONE" >/dev/null 2>&1; then
     confirm_box "A zona reversa $ZONE já existe. Deseja recriá-la?"
     if [ $? -eq 0 ]; then
-        samba-tool dns zone delete "$HOST" "$ZONE" -U Administrator >> "$LOG_FILE" 2>&1
+        samba-tool dns zone delete "$HOST" "$ZONE" -U Administrator
     else
         info_box "Operação cancelada."
         exit 0
@@ -34,7 +34,7 @@ fi
 
 # Cria a zona
 log "Criando zona reversa $ZONE..."
-samba-tool dns zonecreate "$HOST" "$ZONE" -U Administrator >> "$LOG_FILE" 2>&1
+samba-tool -U Administrator dns zonecreate "$HOST" "$ZONE"
 if [ $? -ne 0 ]; then
     error_exit "Falha ao criar zona reversa."
 fi
@@ -50,7 +50,7 @@ LAST_OCTET=$(echo "$SERVER_IP" | awk -F. '{print $4}')
 HOSTNAME_FQDN=$(hostname -f)
 
 log "Adicionando registro PTR para $HOSTNAME_FQDN ($SERVER_IP)..."
-samba-tool dns add "$HOST" "$ZONE" "$LAST_OCTET" PTR "$HOSTNAME_FQDN" -U Administrator >> "$LOG_FILE" 2>&1
+samba-tool -U Administrator dns add "$HOST" "$ZONE" "$LAST_OCTET" PTR "$HOSTNAME_FQDN"
 if [ $? -eq 0 ]; then
     info_box "Zona reversa $ZONE criada e registro PTR adicionado para $HOSTNAME_FQDN."
 else

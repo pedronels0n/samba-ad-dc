@@ -12,7 +12,6 @@ source "$SCRIPT_DIR/common.sh"
 check_root
 check_dialog
 # o menu usa dialog, samba-tool, systemctl, etc.
-check_prereqs dialog samba-tool systemctl
 
 show_banner() {
     clear

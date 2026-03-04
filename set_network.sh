@@ -140,3 +140,40 @@ elif [ "$NETWORK_MANAGER" = "ifupdown" ]; then
 fi
 
 info_box "Configuração de rede aplicada para interface $INTERFACE.\nIP: $IP_ADDR\nGateway: $GATEWAY\nDNS: $DNS1 $DNS2"
+
+# Pergunta se deseja configurar o hostname
+confirm_box "Deseja configurar o hostname e atualizar o /etc/hosts agora?"
+if [ $? -eq 0 ]; then
+    # Obtém o FQDN desejado
+    FQDN=$(dialog --stdout --title "Configuração do Hostname" \
+        --inputbox "Digite o nome totalmente qualificado (FQDN) do servidor,\nexemplo: dc1.pmlf.corp" 10 50)
+    if [ -n "$FQDN" ]; then
+        # Validação simples de FQDN
+        if [[ "$FQDN" =~ ^[A-Za-z0-9][-A-Za-z0-9]*\.[A-Za-z0-9.-]+$ ]]; then
+            # Extrai o hostname curto e o domínio
+            HOSTNAME_SHORT=$(echo "$FQDN" | cut -d. -f1)
+            
+            # Define o hostname
+            log "Configurando hostname para $FQDN"
+            hostnamectl set-hostname "$FQDN" 2>/dev/null || log "Aviso: hostnamectl não disponível"
+            
+            # Extrai apenas o IP (sem a máscara CIDR)
+            IP_ONLY=$(echo "$IP_ADDR" | cut -d/ -f1)
+            
+            # Backup do /etc/hosts
+            cp /etc/hosts /etc/hosts.bak.$(date +%Y%m%d%H%M%S)
+            
+            # Remove qualquer linha que contenha o hostname curto ou FQDN (para evitar duplicatas)
+            sed -i "/$HOSTNAME_SHORT/d" /etc/hosts
+            sed -i "/$FQDN/d" /etc/hosts
+            
+            # Adiciona a nova entrada com o IP real da máquina
+            echo "$IP_ONLY $FQDN $HOSTNAME_SHORT" >> /etc/hosts
+            
+            log "Arquivo /etc/hosts atualizado com IP: $IP_ONLY"
+            info_box "Hostname configurado para:\n$FQDN\nIP no /etc/hosts: $IP_ONLY"
+        else
+            error_exit "FQDN inválido. Certifique-se de incluir um domínio, ex: dc1.pmlf.corp"
+        fi
+    fi
+fi
