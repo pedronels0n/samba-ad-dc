@@ -44,13 +44,8 @@ log "Parando serviços do Samba..."
 systemctl stop samba-ad-dc 2>/dev/null || true
 systemctl stop smbd nmbd winbind 2>/dev/null || true
 sleep 2
-
-# Verifica se os processos foram parados
-if pgrep -f "samba-ad-dc|smbd|nmbd|winbind" > /dev/null; then
-    log "AVISO: Alguns processos ainda estão rodando. Forçando parada..."
-    pkill -9 -f "samba-ad-dc|smbd|nmbd|winbind" || true
-    sleep 1
-fi
+systemctl stop samba 2>/dev/null || true
+sleep 2
 
 log "Serviços parados."
 
@@ -66,17 +61,25 @@ fi
 log "Iniciando provisionamento do domínio $DOMAIN..."
 samba-tool domain provision \
     --use-rfc2307 \
-    --use-xattr=yes \
     --realm="$REALM" \
     --domain="$DOMAIN_SHORT" \
     --adminpass="$ADMIN_PASS" \
     --server-role=dc \
-    --dns-backend=SAMBA_INTERNAL \
-    >> "$LOG_FILE" 2>&1 || error_exit "Falha no provisionamento."
+    --dns-backend=SAMBA_INTERNAL 
 
 log "Provisionamento concluído com sucesso."
 
-# Configura o serviço samba-ad-dc
+# Obtém o IP do servidor
+SERVER_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v 127.0.0.1 | head -1)
+if [ -z "$SERVER_IP" ]; then
+    error_exit "Não foi possível determinar o IP do servidor."
+fi
+
+log "Adicionando configurações de interface ao smb.conf..."
+# Adiciona as configurações de interfaces após a seção [global]
+sed -i "/^\[global\]/a\    bind interfaces only = yes\n    interfaces = lo $SERVER_IP" /etc/samba/smb.conf
+
+log "Configurações de interface adicionadas com sucesso."
 systemctl unmask samba-ad-dc
 systemctl enable samba-ad-dc
 
