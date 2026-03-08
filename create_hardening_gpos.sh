@@ -1,25 +1,54 @@
 #!/bin/bash
-# create_hardening_gpos.sh - Cria as GPOs de hardening a partir da lista
+# create_hardening_gpos.sh - Cria as GPOs de hardening
+# Remove temporariamente o full_audit para evitar problemas com sysvolreset
 
-source "$(dirname "$0")/common.sh"
+# Verifica se é root
+if [[ $EUID -ne 0 ]]; then
+    echo "❌ Este script deve ser executado como root. Use: sudo $0"
+    exit 1
+fi
 
-check_root
-check_prereqs samba-tool dialog
+# Verifica se o Samba está rodando
+if ! systemctl is-active --quiet samba-ad-dc; then
+    echo "❌ O serviço samba-ad-dc não está ativo. Inicie-o primeiro."
+    exit 1
+fi
 
-# Verifica se o samba-tool está disponível
-command -v samba-tool >/dev/null || error_exit "samba-tool não encontrado."
+# Pede a senha do Administrator
+echo -n "Digite a senha do usuário Administrator do domínio: "
+read -s ADMIN_PASS
+echo
 
-# Solicita a senha do Administrator (duas vezes para confirmação)
-exec 3>&1
-ADMIN_PASS=$(dialog --stdout --title "Senha do Administrator" \
-    --passwordbox "Digite a senha do usuário Administrator do domínio:" 8 50)
-[ -z "$ADMIN_PASS" ] && error_exit "Senha não informada."
+# Define arquivos importantes
+SMB_CONF="/etc/samba/smb.conf"
+BACKUP_SMB="${SMB_CONF}.gpo-creation.bak.$(date +%Y%m%d%H%M%S)"
 
-ADMIN_PASS2=$(dialog --stdout --title "Confirme a senha" \
-    --passwordbox "Digite a senha novamente:" 8 50)
-[ "$ADMIN_PASS" != "$ADMIN_PASS2" ] && error_exit "As senhas não conferem."
+# ========== 1. Backup do smb.conf ==========
+echo "Criando backup do smb.conf em $BACKUP_SMB ..."
+cp "$SMB_CONF" "$BACKUP_SMB"
 
-# Lista exata das GPOs a criar
+# ========== 2. Remoção temporária do full_audit ==========
+echo "Removendo temporariamente full_audit das seções [sysvol] e [netlogon]..."
+sed -i '/^\[sysvol\]/,/^\[/ s/vfs objects = dfs_samba4 acl_xattr full_audit/vfs objects = dfs_samba4 acl_xattr/' "$SMB_CONF"
+sed -i '/^\[netlogon\]/,/^\[/ s/vfs objects = dfs_samba4 acl_xattr full_audit/vfs objects = dfs_samba4 acl_xattr/' "$SMB_CONF"
+
+echo "Reiniciando o Samba para aplicar a mudança..."
+systemctl restart samba-ad-dc
+sleep 3
+if ! systemctl is-active --quiet samba-ad-dc; then
+    echo "❌ Falha ao reiniciar o Samba. Abortando."
+    exit 1
+fi
+
+# ========== 3. Execução do sysvolreset ==========
+echo "Executando samba-tool ntacl sysvolreset..."
+if ! samba-tool ntacl sysvolreset; then
+    echo "❌ Erro ao executar ntacl sysvolreset. Abortando."
+    exit 1
+fi
+
+# ========== 4. Criação das GPOs ==========
+# Lista completa das GPOs desejadas
 GPOS=(
     "PC_WinServer IE 11 PC"
     "User_WinServer IE 11 User"
@@ -44,31 +73,63 @@ GPOS=(
 )
 
 TOTAL=${#GPOS[@]}
-CURRENT=0
-FAILED=()
+SUCESSO=0
+FALHA=0
+EXISTENTES=()
 
-# Criação com barra de progresso (dialog --gauge)
-for GPO in "${GPOS[@]}"; do
-    PERCENT=$((CURRENT * 100 / TOTAL))
-    echo "$PERCENT" | dialog --gauge "Criando GPO: $GPO\n($CURRENT de $TOTAL concluídas)" 8 70 0
-
-    log "Criando GPO: $GPO"
-    samba-tool gpo create "$GPO" -U Administrator --password="$ADMIN_PASS"
-    if [ $? -ne 0 ]; then
-        log "ERRO: Falha ao criar GPO '$GPO'"
-        FAILED+=("$GPO")
+# Obtém lista de GPOs já existentes (ignorando saída de erro)
+echo "Obtendo lista de GPOs existentes..."
+while IFS= read -r line; do
+    if [[ "$line" =~ "display name:" ]]; then
+        nome=$(echo "$line" | cut -d: -f2- | sed 's/^ //')
+        EXISTENTES+=("$nome")
     fi
-    ((CURRENT++))
+done < <(samba-tool gpo listall 2>/dev/null)
+
+echo "GPOs já existentes: ${#EXISTENTES[@]}"
+echo "-----------------------------------"
+
+for GPO in "${GPOS[@]}"; do
+    # Verifica se já existe
+    existe=0
+    for e in "${EXISTENTES[@]}"; do
+        if [[ "$e" == "$GPO" ]]; then
+            existe=1
+            break
+        fi
+    done
+
+    if [[ $existe -eq 1 ]]; then
+        echo "⚠️  GPO já existe: $GPO (pulando)"
+        continue
+    fi
+
+    echo -n "Criando: $GPO ... "
+    if samba-tool gpo create "$GPO" -U Administrator --password="$ADMIN_PASS" > /dev/null 2>&1; then
+        echo "✅"
+        ((SUCESSO++))
+    else
+        echo "❌"
+        ((FALHA++))
+    fi
 done
 
-# Mensagem final
-if [ ${#FAILED[@]} -eq 0 ]; then
-    info_box "Todas as $TOTAL GPOs foram criadas com sucesso!"
-else
-    MSG="Algumas GPOs falharam:\n"
-    for f in "${FAILED[@]}"; do
-        MSG+="- $f\n"
-    done
-    MSG+="\nVerifique o log em $LOG_FILE"
-    info_box "$MSG"
+# ========== 5. Aviso final ==========
+echo "========== RESUMO =========="
+echo "Total de GPOs na lista: $TOTAL"
+echo "Já existiam: $((TOTAL - SUCESSO - FALHA))"
+echo "Criadas agora: $SUCESSO"
+echo "Falhas: $FALHA"
+
+if [ $FALHA -gt 0 ]; then
+    echo "❌ Algumas GPOs falharam. Execute manualmente com --debug para diagnóstico."
 fi
+
+echo ""
+echo "⚠️  ATENÇÃO: O full_audit foi REMOVIDO temporariamente do smb.conf."
+echo "   Após importar as políticas no Windows, execute o script de finalização:"
+echo "   sudo ./finalize_samba_security.sh"
+echo ""
+echo "Backup do smb.conf original: $BACKUP_SMB"
+
+exit 0

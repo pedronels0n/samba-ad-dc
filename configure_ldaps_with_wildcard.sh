@@ -1,67 +1,60 @@
 #!/bin/bash
-# configure_ldaps_with_wildcard.sh - Usa o certificado wildcard para LDAPS
+# configurar_ldaps_com_ca.sh
+# Após executar create_internal_ca.sh, este script configura o Samba e gera um arquivo .deb para distribuição da CA.
 
 source "$(dirname "$0")/common.sh"
 
-check_root
-check_prereqs openssl cp chmod cat systemctl grep sed
+DOMAIN=$(hostname -d)
+CA_DIR="/root/ca"
 
-# usa CA_DIR global ou valor padrão
-CA_DIR="${CA_DIR:-/root/samba-ca}"
-WILDCARD_KEY="$CA_DIR/wildcard.key"
-WILDCARD_CERT="$CA_DIR/wildcard.crt"
-CA_CERT="$CA_DIR/ca.crt"
+# Verifica se os arquivos existem
+if [ ! -f "$CA_DIR/certs/ca-chain.crt.pem" ]; then
+    error_exit "Cadeia de certificados não encontrada. Execute create_internal_ca.sh primeiro."
+fi
 
-for f in "$WILDCARD_KEY" "$WILDCARD_CERT" "$CA_CERT"; do
-    [ -f "$f" ] || error_exit "Arquivo $f não encontrado. Execute setup_ca.sh primeiro."
-done
+# Faz backup do smb.conf
+cp /etc/samba/smb.conf /etc/samba/smb.conf.bak.$(date +%Y%m%d%H%M%S)
 
-# Diretório de destino no Samba
-TLS_DIR="/var/lib/samba/private/tls"
-mkdir -p "$TLS_DIR"
+# Atualiza as configurações TLS
+sed -i '/^[[:space:]]*tls enabled/d' /etc/samba/smb.conf
+sed -i '/^[[:space:]]*tls keyfile/d' /etc/samba/smb.conf
+sed -i '/^[[:space:]]*tls certfile/d' /etc/samba/smb.conf
+sed -i '/^[[:space:]]*tls cafile/d' /etc/samba/smb.conf
 
-# Copia os certificados
-cp "$WILDCARD_KEY" "$TLS_DIR/server.key"
-cp "$WILDCARD_CERT" "$TLS_DIR/server.crt"
-cp "$CA_CERT" "$TLS_DIR/ca.crt"
+sed -i '/^\[global\]/a tls enabled = yes' /etc/samba/smb.conf
+sed -i '/^\[global\]/a tls keyfile = '"$CA_DIR/private/wildcard.$DOMAIN.key.pem" /etc/samba/smb.conf
+sed -i '/^\[global\]/a tls certfile = '"$CA_DIR/certs/wildcard.$DOMAIN.crt.pem" /etc/samba/smb.conf
+sed -i '/^\[global\]/a tls cafile = '"$CA_DIR/certs/ca-chain.crt.pem" /etc/samba/smb.conf
 
-# Ajusta permissões
-chmod 600 "$TLS_DIR/server.key"
-chmod 644 "$TLS_DIR/server.crt" "$TLS_DIR/ca.crt"
-
-# Concatena para PEM (se necessário)
-cat "$TLS_DIR/server.key" "$TLS_DIR/server.crt" > "$TLS_DIR/server.pem"
-chmod 600 "$TLS_DIR/server.pem"
-
-# Configura o smb.conf para usar os novos certificados
-SMB_CONF="/etc/samba/smb.conf"
-BACKUP="${SMB_CONF}.wildcard.bak.$(date +%Y%m%d%H%M%S)"
-cp "$SMB_CONF" "$BACKUP"
-
-# Função para adicionar/substituir parâmetros
-add_param() {
-    local section="$1"
-    local param="$2"
-    local value="$3"
-    local file="$4"
-    if ! grep -q "^\[$section\]" "$file"; then
-        echo "[$section]" >> "$file"
-    fi
-    sed -i "/^\[$section\]/,/^\[/ { /^$param[[:space:]]*=/ d }" "$file"
-    sed -i "/^\[$section\]/a $param = $value" "$file"
-}
-
-add_param "global" "tls enabled" "yes" "$SMB_CONF"
-add_param "global" "tls keyfile" "$TLS_DIR/server.key" "$SMB_CONF"
-add_param "global" "tls certfile" "$TLS_DIR/server.crt" "$SMB_CONF"
-add_param "global" "tls cafile" "$TLS_DIR/ca.crt" "$SMB_CONF"
-
-log "Configuração TLS atualizada com certificado wildcard."
+log "Configurações TLS aplicadas no smb.conf."
 
 # Reinicia o Samba
-systemctl restart samba-ad-dc >> "$LOG_FILE" 2>&1
-if systemctl is-active samba-ad-dc >/dev/null; then
-    info_box "LDAPS agora usando certificado wildcard assinado pela CA interna.\nCA: $TLS_DIR/ca.crt"
-else
-    error_exit "Falha ao reiniciar samba-ad-dc."
-fi
+systemctl restart samba-ad-dc
+log "Samba reiniciado."
+
+# Cria um pacote .deb simples com o certificado da CA para distribuição
+# (Isso é útil para clientes Debian/Ubuntu)
+PKG_DIR="/tmp/samba-ca-deb"
+mkdir -p "$PKG_DIR/DEBIAN" "$PKG_DIR/usr/local/share/ca-certificates"
+cp "$CA_DIR/certs/ca.root.crt.pem" "$PKG_DIR/usr/local/share/ca-certificates/samba-ca.crt"
+
+cat > "$PKG_DIR/DEBIAN/control" <<EOF
+Package: samba-ca
+Version: 1.0
+Architecture: all
+Maintainer: Admin <admin@$DOMAIN>
+Description: CA raiz do Samba AD DC
+ Instala o certificado da CA raiz no trust store do sistema.
+EOF
+
+cat > "$PKG_DIR/DEBIAN/postinst" <<'EOF'
+#!/bin/sh
+set -e
+update-ca-certificates
+EOF
+chmod 755 "$PKG_DIR/DEBIAN/postinst"
+
+dpkg-deb --build "$PKG_DIR" "/root/samba-ca.deb"
+log "Pacote .deb criado: /root/samba-ca.deb"
+
+info_box "LDAPS configurado com sucesso!\n\nPacote para clientes: /root/samba-ca.deb\nInstale nos clientes com: dpkg -i samba-ca.deb"

@@ -48,22 +48,20 @@ while true; do
         13 "Habilitar LDAPS (Certificado Autoassinado)" \
         "-" "------------------- INFRAESTRUTURA DE CERTIFICADOS ------------------" \
         14 "Criar Autoridade Certificadora (CA) Interna (gera wildcard)" \
-        15 "Exibir Informações do Certificado Wildcard" \
-        16 "Configurar LDAPS com Certificado Wildcard" \
-        17 "Distribuir Certificado CA para Clientes" \
-        18 "Renovar Certificado Wildcard (para cron)" \
+        15 "Configurar LDAPS com Certificado" \
+        16 "Distribuir Certificado CA para Clientes" \
         "-" "---------------------- GERENCIAMENTO DE GPOS ----------------------" \
-        19 "Remover GPOs Padrão do Samba (Default Domain Policy)" \
-        20 "Criar GPOs de Hardening (lista predefinida)" \
-        21 "Finalizar Segurança (restaurar full_audit + smb encrypt)" \
+        17 "Remover GPOs Padrão do Samba (Default Domain Policy)(opcional)" \
+        18 "Criar GPOs de Hardening (lista predefinida)" \
+        19 "Finalizar Segurança (restaurar full_audit + smb encrypt)" \
         "-" "------------------------ BACKUP E RESTORE -------------------------" \
-        22 "Realizar Backup Manual do Samba AD DC" \
-        23 "Restaurar de Backup (Desastre)" \
+        20 "Realizar Backup Manual do Samba AD DC" \
+        21 "Restaurar de Backup (Desastre)" \
         "-" "-------------------------- UTILITÁRIOS ---------------------------" \
-        24 "Verificar Instalação" \
-        25 "Executar Implantação BÁSICA (1-8)" \
-        26 "Executar Implantação AVANÇADA (9-13)" \
-        27 "Sair")
+        22 "Verificar Instalação" \
+        23 "Executar Implantação BÁSICA (1-8)" \
+        24 "Executar Implantação AVANÇADA (9-13)" \
+        25 "Sair")
 
     case $CHOICE in
         1)  bash "$SCRIPT_DIR/set_hostname.sh" ;;
@@ -80,17 +78,15 @@ while true; do
         12) bash "$SCRIPT_DIR/harden_samba.sh" ;;
         13) bash "$SCRIPT_DIR/enable_ldaps.sh" ;;
         14) bash "$SCRIPT_DIR/setup_ca.sh" ;;
-        15) bash "$SCRIPT_DIR/info_wildcard.sh" ;;
-        16) bash "$SCRIPT_DIR/configure_ldaps_with_wildcard.sh" ;;
-        17) bash "$SCRIPT_DIR/distribute_ca.sh" ;;
-        18) bash "$SCRIPT_DIR/renew_wildcard_cert.sh" ;;
-        19) bash "$SCRIPT_DIR/remove_default_gpos.sh" ;;
-        20) bash "$SCRIPT_DIR/create_hardening_gpos.sh" ;;
-        21) bash "$SCRIPT_DIR/finalize_samba_security.sh" ;;
-        22) bash "$SCRIPT_DIR/samba_backup.sh" ;;
-        23) bash "$SCRIPT_DIR/samba_restore.sh" ;;
-        24) bash "$SCRIPT_DIR/verify_installation.sh" ;;
-        25)
+        15) bash "$SCRIPT_DIR/configure_ldaps_with_wildcard.sh" ;;
+        16) bash "$SCRIPT_DIR/distribute_ca.sh" ;;
+        17) bash "$SCRIPT_DIR/remove_default_gpos.sh" ;;
+        18) bash "$SCRIPT_DIR/create_hardening_gpos.sh" ;;
+        19) bash "$SCRIPT_DIR/finalize_samba_security.sh" ;;
+        20) bash "$SCRIPT_DIR/samba_backup.sh" ;;
+        21) bash "$SCRIPT_DIR/samba_restore.sh" ;;
+        22) bash "$SCRIPT_DIR/verify_installation.sh" ;;
+        23)
             dialog --infobox "Executando etapas BÁSICAS..." 5 60
             sleep 1
             bash "$SCRIPT_DIR/set_hostname.sh" &&
@@ -103,7 +99,7 @@ while true; do
             bash "$SCRIPT_DIR/configure_services.sh" &&
             info_box "✔ Implantação básica concluída com sucesso!"
             ;;
-        26)
+        24)
             dialog --infobox "Executando etapas AVANÇADAS..." 5 60
             sleep 1
             bash "$SCRIPT_DIR/raise_functional_level.sh" &&
@@ -113,7 +109,7 @@ while true; do
             bash "$SCRIPT_DIR/enable_ldaps.sh" &&
             info_box "✔ Implantação avançada concluída com sucesso!"
             ;;
-        27|"")
+        25|"")
             clear
             echo
             echo "=============================================================="

@@ -7,77 +7,101 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
-# garante que ferramentas necessárias estão presentes
 check_prereqs openssl cp cat mkdir sed systemctl
 
-# Define diretórios (CA_DIR padrão vem de common.sh, mas permitimos sobrescrever)
+# Define diretórios
 CA_DIR="${CA_DIR:-/root/samba-ca}"
-CERTS_DIR="${CERTS_DIR:-/etc/ssl/certs}"  # ou /var/lib/samba/private/tls, mas vamos manter separado
+CERTS_DIR="${CERTS_DIR:-/etc/ssl/certs}"
 PRIVATE_DIR="${PRIVATE_DIR:-/etc/ssl/private}"
-
 mkdir -p "$CA_DIR" "$CERTS_DIR" "$PRIVATE_DIR"
+chmod 700 "$PRIVATE_DIR"
 
-# Obtém o domínio do hostname (ex: exemplo.local)
+# Obtém o domínio do hostname
 DOMAIN=$(hostname -d)
 if [ -z "$DOMAIN" ]; then
     error_exit "Não foi possível determinar o domínio. Configure o hostname FQDN primeiro."
 fi
 
-# Nome do servidor FQDN
 FQDN=$(hostname -f)
-
-# Nome do arquivo sem extensão
 CA_NAME="ca-${DOMAIN}"
 WILDCARD_NAME="wildcard.${DOMAIN}"
+DAYS_CA=7300      # 20 anos para CA raiz
+DAYS_CERT=3650    # 10 anos para o certificado (ou 365 para 1 ano)
 
-# Validade em dias (10 anos)
-DAYS=3650
-
-# Informações do certificado
+# Informações do certificado (ajuste conforme necessário)
 COUNTRY="BR"
 STATE="Bahia"
 LOCALITY="Lauro de Freitas"
 ORGANIZATION="PMLF"
 ORG_UNIT="TI"
-COMMON_NAME="CA $DOMAIN"
 EMAIL="admin@$DOMAIN"
 
-# Gera a chave privada da CA (protegida com senha? Vamos usar sem senha para facilitar, mas em produção recomenda-se senha)
-log "Gerando chave privada da CA..."
+# Verifica se já existe uma CA (para não sobrescrever sem aviso)
+if [ -f "$CA_DIR/${CA_NAME}.key" ] || [ -f "$CERTS_DIR/${CA_NAME}.crt" ]; then
+    log "Uma CA existente foi encontrada."
+    read -p "Deseja sobrescrever? (s/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+        info_box "Operação cancelada. Mantendo CA existente."
+        exit 0
+    fi
+    # Faz backup
+    BACKUP_CA_DIR="$CA_DIR/backup-$(date +%Y%m%d%H%M%S)"
+    mkdir -p "$BACKUP_CA_DIR"
+    cp "$CA_DIR/${CA_NAME}".* "$BACKUP_CA_DIR/" 2>/dev/null
+    cp "$CERTS_DIR/${CA_NAME}.crt" "$BACKUP_CA_DIR/" 2>/dev/null
+    log "Backup da CA antiga em $BACKUP_CA_DIR"
+fi
+
+# Gera a chave privada da CA (protegida com permissões)
+log "Gerando chave privada da CA (4096 bits)..."
 openssl genrsa -out "$CA_DIR/${CA_NAME}.key" 4096 >> "$LOG_FILE" 2>&1
 chmod 600 "$CA_DIR/${CA_NAME}.key"
 
 # Gera o certificado da CA (autoassinado)
-log "Gerando certificado da CA (válido por $DAYS dias)..."
+log "Gerando certificado da CA (válido por $DAYS_CA dias)..."
 openssl req -x509 -new -nodes -key "$CA_DIR/${CA_NAME}.key" \
-    -sha256 -days "$DAYS" \
+    -sha256 -days "$DAYS_CA" \
     -out "$CA_DIR/${CA_NAME}.crt" \
-    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORG_UNIT/CN=$COMMON_NAME/emailAddress=$EMAIL" \
+    -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORG_UNIT/CN=$DOMAIN CA/emailAddress=$EMAIL" \
     >> "$LOG_FILE" 2>&1
 
-# Copia o certificado da CA para local público (para distribuição)
+# Copia o certificado da CA para local público
 cp "$CA_DIR/${CA_NAME}.crt" "$CERTS_DIR/"
+chmod 644 "$CERTS_DIR/${CA_NAME}.crt"
 log "Certificado da CA disponível em $CERTS_DIR/${CA_NAME}.crt"
 
+# Verifica se já existe um wildcard (para não sobrescrever sem aviso)
+if [ -f "$CA_DIR/${WILDCARD_NAME}.key" ] || [ -f "$CERTS_DIR/${WILDCARD_NAME}.crt" ]; then
+    log "Um certificado wildcard existente foi encontrado."
+    read -p "Deseja sobrescrever? (s/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Ss]$ ]]; then
+        log "Mantendo certificado wildcard existente."
+    else
+        # Backup opcional (pode pular)
+        :
+    fi
+fi
+
 # Gera a chave privada do certificado wildcard
-log "Gerando chave privada do certificado wildcard..."
+log "Gerando chave privada do certificado wildcard (2048 bits)..."
 openssl genrsa -out "$CA_DIR/${WILDCARD_NAME}.key" 2048 >> "$LOG_FILE" 2>&1
 chmod 600 "$CA_DIR/${WILDCARD_NAME}.key"
 
-# Cria uma requisição de assinatura de certificado (CSR) para o wildcard
-log "Criando CSR para $WILDCARD_NAME..."
+# Cria uma requisição de assinatura (CSR)
+log "Criando CSR para *.$DOMAIN..."
 openssl req -new -key "$CA_DIR/${WILDCARD_NAME}.key" \
     -out "$CA_DIR/${WILDCARD_NAME}.csr" \
     -subj "/C=$COUNTRY/ST=$STATE/L=$LOCALITY/O=$ORGANIZATION/OU=$ORG_UNIT/CN=*.$DOMAIN/emailAddress=$EMAIL" \
     >> "$LOG_FILE" 2>&1
 
-# Prepara arquivo de extensões x509 v3 para incluir SAN (Subject Alternative Name)
-# O Samba exige que o nome do servidor (FQDN) esteja no SAN ou CN. Vamos colocar CN=*.$DOMAIN e SAN com DNS:*.$DOMAIN e DNS:$FQDN
+# Arquivo de extensões x509 v3 com SAN
 cat > "$CA_DIR/${WILDCARD_NAME}.ext" <<EOF
-authorityKeyIdentifier=keyid,issuer
-basicConstraints=CA:FALSE
-keyUsage = digitalSignature, nonRepudiation, keyEncipherment, dataEncipherment
 subjectAltName = @alt_names
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
 
 [alt_names]
 DNS.1 = *.$DOMAIN
@@ -91,41 +115,39 @@ openssl x509 -req -in "$CA_DIR/${WILDCARD_NAME}.csr" \
     -CAkey "$CA_DIR/${CA_NAME}.key" \
     -CAcreateserial \
     -out "$CA_DIR/${WILDCARD_NAME}.crt" \
-    -days "$DAYS" -sha256 \
+    -days "$DAYS_CERT" -sha256 \
     -extfile "$CA_DIR/${WILDCARD_NAME}.ext" \
     >> "$LOG_FILE" 2>&1
 
-# Copia o certificado wildcard e a chave para o diretório do Samba (ou /etc/ssl)
-# Vamos copiar para /etc/ssl/certs e /etc/ssl/private
+# Copia o certificado e a chave para os diretórios finais
 cp "$CA_DIR/${WILDCARD_NAME}.crt" "$CERTS_DIR/"
 cp "$CA_DIR/${WILDCARD_NAME}.key" "$PRIVATE_DIR/"
 chmod 644 "$CERTS_DIR/${WILDCARD_NAME}.crt"
 chmod 600 "$PRIVATE_DIR/${WILDCARD_NAME}.key"
 
-log "Certificado wildcard gerado: $CERTS_DIR/${WILDCARD_NAME}.crt"
+log "Certificado wildcard: $CERTS_DIR/${WILDCARD_NAME}.crt"
 log "Chave privada: $PRIVATE_DIR/${WILDCARD_NAME}.key"
 
-# Opcional: criar um arquivo PEM (chave + certificado) para uso no Samba
+# Cria arquivo PEM combinado (opcional)
 cat "$PRIVATE_DIR/${WILDCARD_NAME}.key" "$CERTS_DIR/${WILDCARD_NAME}.crt" > "$CA_DIR/${WILDCARD_NAME}.pem"
-cp "$CA_DIR/${WILDCARD_NAME}.pem" "$PRIVATE_DIR/"
-chmod 600 "$PRIVATE_DIR/${WILDCARD_NAME}.pem"
+chmod 600 "$CA_DIR/${WILDCARD_NAME}.pem"
+log "Arquivo PEM combinado: $CA_DIR/${WILDCARD_NAME}.pem"
 
-log "Arquivo PEM combinado criado: $PRIVATE_DIR/${WILDCARD_NAME}.pem"
+# Cria cadeia da CA (apenas a raiz, já que não temos intermediária)
+cp "$CERTS_DIR/${CA_NAME}.crt" "$CA_DIR/ca-chain.crt"
+log "Cadeia da CA: $CA_DIR/ca-chain.crt"
 
-# Agora precisamos configurar o Samba para usar este certificado
-# Se o smb.conf já existir, vamos ajustar os parâmetros tls.
+# Configura o Samba para usar o certificado
 SMB_CONF="/etc/samba/smb.conf"
 if [ -f "$SMB_CONF" ]; then
-    # Faz backup
     cp "$SMB_CONF" "$SMB_CONF.bak.ca.$(date +%Y%m%d%H%M%S)"
     
-    # Função para adicionar ou substituir parâmetros (já definida em common.sh ou repetimos)
+    # Função add_param (se não existir no common.sh)
     add_param() {
         local section="$1"
         local param="$2"
         local value="$3"
         local file="$4"
-        
         if ! grep -q "^\[$section\]" "$file"; then
             echo "[$section]" >> "$file"
         fi
@@ -138,15 +160,32 @@ if [ -f "$SMB_CONF" ]; then
     add_param "global" "tls certfile" "$CERTS_DIR/${WILDCARD_NAME}.crt" "$SMB_CONF"
     add_param "global" "tls cafile" "$CERTS_DIR/${CA_NAME}.crt" "$SMB_CONF"
     
-    log "Configuração TLS no smb.conf atualizada para usar o certificado wildcard e a CA."
+    log "Configuração TLS no smb.conf atualizada."
+    
+    # Reinicia o Samba se ativo
+    if systemctl is-active samba-ad-dc >/dev/null 2>&1; then
+        systemctl restart samba-ad-dc >> "$LOG_FILE" 2>&1
+        log "Samba reiniciado."
+    fi
 else
-    log "Arquivo smb.conf não encontrado. Você precisará configurar manualmente após provisionar o domínio."
+    log "Arquivo smb.conf não encontrado. Configure manualmente os parâmetros TLS."
 fi
 
-# Reinicia o Samba para aplicar as mudanças (se estiver em execução)
-if systemctl is-active samba-ad-dc >/dev/null 2>&1; then
-    systemctl restart samba-ad-dc >> "$LOG_FILE" 2>&1
-    log "Samba reiniciado para aplicar novo certificado."
-fi
+# Resumo final
+echo
+log "=== RESUMO ==="
+echo "CA raiz:        $CERTS_DIR/${CA_NAME}.crt"
+echo "Chave da CA:    $CA_DIR/${CA_NAME}.key (mantido em local seguro)"
+echo "Wildcard CRT:   $CERTS_DIR/${WILDCARD_NAME}.crt"
+echo "Wildcard KEY:   $PRIVATE_DIR/${WILDCARD_NAME}.key"
+echo "Wildcard PEM:   $CA_DIR/${WILDCARD_NAME}.pem"
+echo "Cadeia CA:      $CA_DIR/ca-chain.crt"
+echo
+echo "Para clientes confiarem, distribua: $CERTS_DIR/${CA_NAME}.crt"
+echo "Em sistemas Linux:"
+echo "  sudo cp $CERTS_DIR/${CA_NAME}.crt /usr/local/share/ca-certificates/"
+echo "  sudo update-ca-certificates"
+echo "Em Windows: importe como Autoridade de Certificação Raiz Confiável."
+sleep 10
 
-info_box "CA e certificado wildcard criados com sucesso!\n\nCA: $CERTS_DIR/${CA_NAME}.crt\nCertificado wildcard: $CERTS_DIR/${WILDCARD_NAME}.crt\nChave: $PRIVATE_DIR/${WILDCARD_NAME}.key\n\nIMPORTANTE: Distribua o certificado da CA para todos os clientes da rede para que confiem no certificado."
+info_box "CA e certificado wildcard criados com sucesso!\n\nCA: $CERTS_DIR/${CA_NAME}.crt\nWildcard: $CERTS_DIR/${WILDCARD_NAME}.crt"

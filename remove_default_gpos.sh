@@ -5,15 +5,6 @@
 source "$(dirname "$0")/common.sh"
 
 check_root
-check_prereqs samba-tool ldbsearch ldbdel dialog sed systemctl
-
-# Instala ldb-tools se não estiver presente (necessário para ldbdel/ldbsearch)
-if ! command -v ldbdel >/dev/null 2>&1; then
-    log "Instalando ldb-tools (apt-get)..."
-    apt-get update -y >> "$LOG_FILE" 2>&1 || true
-    apt-get install -y ldb-tools >> "$LOG_FILE" 2>&1 || error_exit "Falha ao instalar ldb-tools"
-    log "ldb-tools instalado."
-fi
 
 # Verifica se o domínio foi provisionado
 if [ ! -f /var/lib/samba/private/sam.ldb ]; then
@@ -61,14 +52,11 @@ fi
 
 # --- Redefinição das permissões do sysvol ---
 log "Executando samba-tool ntacl sysvolreset..."
-samba-tool -U Administrator ntacl sysvolreset 
+samba-tool ntacl sysvolreset >> "$LOG_FILE" 2>&1
 if [ $? -ne 0 ]; then
     error_exit "Falha ao executar sysvolreset."
 fi
 
-# Lista as GPOs atuais para conferência (conforme manual)
-log "Listando GPOs atuais (samba-tool gpo listall)..."
-samba-tool -U Administrator gpo listall 
 # --- Exclusão dos objetos no banco de dados (ldbdel) ---
 LDB_DEL="ldbdel -H /var/lib/samba/private/sam.ldb --relax"
 
