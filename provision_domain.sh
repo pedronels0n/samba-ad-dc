@@ -40,7 +40,19 @@ if [ $? -ne 0 ]; then
 fi
 
 # Para o Samba se estiver rodando
-systemctl stop samba-ad-dc smbd nmbd winbind 2>/dev/null
+log "Parando serviços do Samba..."
+systemctl stop samba-ad-dc 2>/dev/null || true
+systemctl stop smbd nmbd winbind 2>/dev/null || true
+sleep 2
+
+# Verifica se os processos foram parados
+if pgrep -f "samba-ad-dc|smbd|nmbd|winbind" > /dev/null; then
+    log "AVISO: Alguns processos ainda estão rodando. Forçando parada..."
+    pkill -9 -f "samba-ad-dc|smbd|nmbd|winbind" || true
+    sleep 1
+fi
+
+log "Serviços parados."
 
 # Backup do smb.conf atual e remoção para garantir que não haja interferência
 if [ -f /etc/samba/smb.conf ]; then
@@ -54,6 +66,7 @@ fi
 log "Iniciando provisionamento do domínio $DOMAIN..."
 samba-tool domain provision \
     --use-rfc2307 \
+    --use-xattr=yes \
     --realm="$REALM" \
     --domain="$DOMAIN_SHORT" \
     --adminpass="$ADMIN_PASS" \

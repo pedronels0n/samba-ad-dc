@@ -77,16 +77,16 @@ if [ ! -d "$NTP_SIGND_DIR" ]; then
     log "Diretório $NTP_SIGND_DIR criado."
 fi
 
-# Ajusta proprietário e permissões
-chown root:_chrony "$NTP_SIGND_DIR"
+# Verifica se o grupo _chrony existe; cria se não existir
+if ! getent group _chrony > /dev/null; then
+    log "Grupo _chrony não encontrado. Criando..."
+    groupadd -r _chrony || log "Falha ao criar grupo _chrony"
+fi
+
+# Ajusta proprietário e permissões (será ajustado novamente após provisionamento)
+chown -f root:_chrony "$NTP_SIGND_DIR" 2>/dev/null || true
 chmod 750 "$NTP_SIGND_DIR"
 log "Permissões do $NTP_SIGND_DIR ajustadas: owner root:_chrony, permissões 750."
-
-# (Opcional) Verifica se o grupo _chrony existe; cria se não existir
-if ! getent group _chrony > /dev/null; then
-    log "Grupo _chrony não encontrado. Criando grupo _chrony..."
-    groupadd -r _chrony || log "falha ao criar grupo _chrony, continue manualmente"
-fi
 
 # Habilita e reinicia o chrony
 systemctl enable chrony >> "$LOG_FILE" 2>&1

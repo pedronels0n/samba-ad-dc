@@ -14,6 +14,8 @@ log "Instalando pacotes: samba, krb5-config, winbind, chrony, rsyslog, smbclient
 # O -y apenas confirma a instalação, mas as configurações dos pacotes (debconf) serão interativas.
 apt-get install -y \
     samba \
+    samba-dsdb-modules \
+    samba-vfs-modules \
     krb5-config \
     krb5-user \
     winbind \
@@ -27,6 +29,8 @@ apt-get install -y \
     acl \
     attr \
     ldb-tools \
+    openssl \
+    bind9-utils \
 
 # Verifica se chrony foi instalado e inicia o serviço
 if systemctl list-unit-files | grep -q chrony; then

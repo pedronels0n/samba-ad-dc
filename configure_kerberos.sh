@@ -14,8 +14,26 @@ if [ -z "$DOMAIN" ]; then
     error_exit "Domínio não informado."
 fi
 
+# Valida o domínio (deve conter ao menos um ponto)
+if ! [[ "$DOMAIN" =~ \. ]]; then
+    error_exit "Domínio inválido. Deve conter ao menos um ponto (ex: exemplo.local)"
+fi
+
 # Converte para maiúsculas (realm)
 REALM=$(echo "$DOMAIN" | tr '[:lower:]' '[:upper:]')
+
+# Pega o FQDN do servidor (normalmente deve ser conhecido neste ponto)
+FQDN=$(hostname -f)
+if [ -z "$FQDN" ] || [ "$FQDN" = "localhost" ]; then
+    FQDN=$(dialog --stdout --title "FQDN do Servidor KDC" \
+        --inputbox "Digite o FQDN do servidor (ex: dc1.exemplo.local):" 8 50)
+    if [ -z "$FQDN" ]; then
+        error_exit "FQDN do servidor não informado."
+    fi
+fi
+
+log "Configurando Kerberos para domínio: $DOMAIN (realm: $REALM)"
+log "Servidor KDC: $FQDN"
 
 # Faz backup do krb5.conf atual caso exista
 if [ -f /etc/krb5.conf ]; then
@@ -31,17 +49,28 @@ cat > /etc/krb5.conf <<EOF
     ticket_lifetime = 24h
     renew_lifetime = 7d
     forwardable = true
+    default_tkt_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 des-cbc-md5
+    default_tgs_enctypes = aes256-cts-hmac-sha1-96 aes128-cts-hmac-sha1-96 des-cbc-md5
 
 [realms]
     $REALM = {
-        kdc = $(hostname -f)
-        admin_server = $(hostname -f)
+        kdc = $FQDN
+        admin_server = $FQDN
+        default_domain = $DOMAIN
     }
 
 [domain_realm]
     .$(echo "$DOMAIN" | sed 's/^\.//') = $REALM
     $(echo "$DOMAIN" | sed 's/^\.//') = $REALM
+
+[logging]
+    default = FILE:/var/log/krb5libs.log
+    kdc = FILE:/var/log/krb5kdc.log
+    admin_server = FILE:/var/log/kadmind.log
 EOF
 
 log "Arquivo /etc/krb5.conf gerado para o domínio $DOMAIN."
-info_box "Kerberos configurado para o domínio:\n$DOMAIN\nRealm: $REALM"
+info_box "Kerberos configurado:\n\
+Domínio: $DOMAIN\n\
+Realm (maiúscula): $REALM\n\
+Servidor KDC: $FQDN"

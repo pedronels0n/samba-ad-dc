@@ -37,6 +37,17 @@ hostnamectl set-hostname "$FQDN" || error_exit "Falha ao configurar hostname com
 # Mas para simplificar, vamos substituir a entrada 127.0.1.1 que muitas distribuições usam.
 # Se existir 127.0.1.1, substituímos; senão, adicionamos.
 
+# Tenta obter o IP real da primeira interface não-loopback
+IP_REAL=$(ip -o route get 1 | awk '{print $7;exit}')
+if [ -z "$IP_REAL" ] || [ "$IP_REAL" = "127.0.0.1" ]; then
+    # Se não conseguir, usa 127.0.1.1 como fallback (útil apenas para localhost)
+    log "AVISO: Não foi detectado IP real. Usando 127.0.1.1 no /etc/hosts como fallback."
+    log "Execute 'set_network.sh' primeiro para configurar IP estático e /etc/hosts corretamente."
+    IP_REAL="127.0.1.1"
+else
+    log "IP detectado para $FQDN: $IP_REAL"
+fi
+
 # Backup do /etc/hosts
 cp /etc/hosts /etc/hosts.bak.$(date +%Y%m%d%H%M%S)
 
@@ -44,9 +55,8 @@ cp /etc/hosts /etc/hosts.bak.$(date +%Y%m%d%H%M%S)
 sed -i "/$HOSTNAME_SHORT/d" /etc/hosts
 sed -i "/$FQDN/d" /etc/hosts
 
-# Adiciona a nova entrada. Vamos usar o IP 127.0.1.1 (padrão Debian/Ubuntu para hostname)
-# Se o sistema usar outro IP, isso pode ser ajustado posteriormente.
-echo "127.0.1.1 $FQDN $HOSTNAME_SHORT" >> /etc/hosts
+# Adiciona a nova entrada com o IP detectado
+echo "$IP_REAL $FQDN $HOSTNAME_SHORT" >> /etc/hosts
 
-log "Arquivo /etc/hosts atualizado."
-info_box "Hostname configurado para:\n$FQDN\nDomínio: $DOMAIN"
+log "Arquivo /etc/hosts atualizado com IP: $IP_REAL"
+info_box "Hostname configurado para:\n$FQDN\nDomínio: $DOMAIN\nIP no /etc/hosts: $IP_REAL\n\nDica: Se o IP aparecer como 127.0.1.1, execute primeiro set_network.sh para configurar IP estático."
