@@ -35,9 +35,9 @@ DAYS=3650
 
 # Informações do certificado
 COUNTRY="BR"
-STATE="Sao Paulo"
-LOCALITY="Sao Paulo"
-ORGANIZATION="Empresa"
+STATE="Bahia"
+LOCALITY="Lauro de Freitas"
+ORGANIZATION="PMLF"
 ORG_UNIT="TI"
 COMMON_NAME="CA $DOMAIN"
 EMAIL="admin@$DOMAIN"
